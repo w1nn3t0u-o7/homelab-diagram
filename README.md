@@ -12,13 +12,16 @@ The script behind the network diagram of my homelab that I posted on r/homelab. 
 
 ## What it shows
 
-- the path from the internet through the ISP router (with its real ports) and the firewall to the core switch
-- every switch port with the VLANs on it (tall bar = untagged, short bars = tagged)
-- cables whose **line width is the negotiated link speed** (10G / 2.5G / 1G / 100M), trunks drawn as a white cable with a dark core
-- the devices with name, type, model, IP · hostname and OS
-- the Proxmox host with its hardware, the VMs/CTs outside the DMZ, the TrueNAS pools (disks, vdevs, usage) and every DMZ container with its CT ID, IP and hostname
-- containers that run several apps as one card with a row per app
-- what's open to the internet, a legend, the networks table and a small "media pipeline" explainer
+This copy of the diagram describes **this** lab: one Ubuntu laptop running everything as containers, behind CGNAT, with no VLANs, no hypervisor and no forwarded port.
+
+- the internet edge: the ISP's CGNAT gateway, and the two **outbound** doors — the Cloudflare Tunnel (public) and the Tailscale mesh (private)
+- the tailnet devices, and the host `dell-server` with its real hardware (an i5-7200U, 15 GB of RAM, a USB SSD for the data, Wi-Fi as the only uplink)
+- the door containers themselves: `cloudflared`, `Caddy` and `AdGuard Home`, with the ports each one publishes
+- every stack as a group of cards: what it is, its hostname, and how many containers it hides (`public` / `tailnet` / `host service` as a pill on each card)
+- the four public hostnames, the storage with real usage, and the backup chain from the nightly dumps to OneDrive
+- two explainer panels: *why this shape* (CGNAT) and a side-by-side of the two doors — entry, names, TLS, limits, and what breaks when
+
+> The upstream repo's `docs/example.png` is a different lab (VLANs, OPNsense, a MikroTik switch, Proxmox, TrueNAS). It is still the reference for the style, not for the content.
 
 ## How it works
 
@@ -60,7 +63,7 @@ The service icons are **not** in this repo, `fetch_icons.py` downloads them from
 ## Making it your own
 
 1. Change `inventory.yaml` to your network. Texts, IPs, ports, VLAN colors and the container groups come from there.
-2. Look at the render. Things that don't fit are layout: the top part (cloud, ISP router, firewall, switch, device row) and the column split inside the server card are coordinates in `build.py` (search for `fy, fh`, `ox, oy`, `bx, by`, `DY`, `MAD = …`).
+2. Look at the render. Things that don't fit are layout: the top part (cloud, ISP router, the three connecting lanes, the tailnet panel) and the columns inside the host card are coordinates in `build.py` (search for `CX, CY`, `ix0, iy0`, `hx, hy, hw_`, `BODY_BOTTOM`, `DX0, DBY`, `SZ0, SY0`).
 3. New icons: drop an SVG into `icons/` and use its file name in the inventory.
 
 ## Using it with Claude Code

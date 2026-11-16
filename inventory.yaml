@@ -1,267 +1,202 @@
 # Inventory for the homelab diagram: everything the picture shows comes from this file.
 # build.py reads it; the positions of the boxes are hand-placed in build.py.
-# Hostnames: public apps (behind the reverse proxy) are shown as <host>.<domain> in blue,
-# everything else as <name>.internal in its VLAN color.
+#
+# This lab is not the example's lab: one Docker host behind CGNAT, no VLANs, no
+# hypervisor, no port forwards. So the rows under `networks` are networks (not
+# VLANs), `public_routes` takes the place of `port_forwards`, and the host's
+# stacks are what the example drew as Proxmox guests.
 
 meta:
   title: "My Homelab"
   title_redacted: "My Homelab"
   date: "November 2026"
-  watermark: "u/goblinmine"
-  domain: "example.com"              # your real domain; only shown with --unredacted
+  watermark: "w1nn3t0u"
+  domain: "w1nn3t0u.com"             # your real domain; only shown with --unredacted
 
 redact:
-  domain: true                      # default render replaces the domain with domain_placeholder
+  domain: true                       # default render replaces the domain with domain_placeholder
   domain_placeholder: "redacted.com"
-  ssid_names: true                  # true → generic SSID names (redacted: field)
 
-vlans:   # order = table order
-  - {key: "10",  tag: "VLAN 10", name: LAN,   subnet: "10.0.10.0/24",    color: "#58a6ff", note: "trusted · may manage the other VLANs"}
-  - {key: "20",  tag: "VLAN 20", name: DMZ,   subnet: "10.0.20.0/24",    color: "#f0883e", note: "services · no access to LAN, GUEST or MGMT"}
-  - {key: "30",  tag: "VLAN 30", name: GUEST, subnet: "10.0.30.0/24",    color: "#bc8cff", note: "internet only · plus the NAS public share"}
-  - {key: "40",  tag: "VLAN 40", name: IoT,   subnet: "10.0.40.0/24",    color: "#3fb950", note: "internet only · HA gets a few narrow holes"}
-  - {key: "99",  tag: "VLAN 99", name: MGMT,  subnet: "10.0.99.0/24",    color: "#e3b341", note: "admin interfaces · only from LAN and VPN"}
-  - {key: "vpn", tag: "WireGuard", name: VPN,   subnet: "10.0.50.0/24",    color: "#39c5cf", note: "split tunnel · LAN-like access, no internet"}
-  - {key: "wan", tag: "Fritzbox", name: WAN,   subnet: "192.168.178.0/24", color: "#f85149", note: "untrusted · OPNsense's uplink to the Fritzbox"}
+networks:   # order = table order
+  - {key: lan,   tag: "LAN",     name: "Home LAN",       subnet: "192.168.100.0/24",   color: "#58a6ff",
+     note: "flat · no VLANs · the router hands out AdGuard as DNS"}
+  - {key: proxy, tag: "docker",  name: "proxy",          subnet: "10.42.0.0/24",       color: "#f0883e",
+     note: "shared by cloudflared, caddy and every stack"}
+  - {key: back,  tag: "docker",  name: "stack backends", subnet: "10.43–45 · 172.18",  color: "#bc8cff",
+     note: "one per stack · databases stay off proxy"}
+  - {key: ts,    tag: "tailnet", name: "Tailscale",      subnet: "100.64.0.0/10",      color: "#39c5cf",
+     note: "the private door · WireGuard mesh · no size cap"}
+  - {key: wan,   tag: "CGNAT",   name: "the ISP",        subnet: "shared IPv4",        color: "#f85149",
+     note: "no inbound port exists to forward"}
 
 internet:
-  speed: {down: "600 Mbit/s", up: "50 Mbit/s"}
   cloud_services:
-    - {icon: cloudflare, name: "Cloudflare", note: "DNS · *.{domain} · DNS-01 wildcard cert"}
-    - {icon: backblaze,  name: "Backblaze B2", note: "offsite copy of NAS data"}
+    - {icon: cloudflare, name: "Cloudflare", note: "DNS · TLS at the edge · the tunnel route"}
+    - {icon: onedrive,   name: "OneDrive",   note: "offsite restic copy, via rclone"}
 
-# device card format: name + type tag / full device name (none = custom build) / IP · hostname / OS + version
-fritzbox:
-  name: "FRITZ!Box"
-  type: "ISP router"
-  model: "AVM FRITZ!Box 6660 Cable"
-  ip: "192.168.178.1"
-  os: "FRITZ!OS 8.25"
-  lan_ports: ["2.5G", "1G", "1G", "1G", "1G"]   # coax "Cable" port is drawn separately
-  opnsense_port: 1                              # index in lan_ports that OPNsense is plugged into
+isp:
+  name: "ISP router"
+  type: "CGNAT gateway"
+  ip: "192.168.100.1"
+  os: "ISP-managed · DHCP + Wi-Fi"
+  note: "no port forwards to set up — there is nothing to forward to"
 
-opnsense:
-  name: "OPNsense"
-  type: "router/firewall"
-  model: "Lenovo thin client"
-  os: "OPNsense 26.7"
+tailnet:
+  name: "Your devices"
+  note: "on the mesh · split DNS sends *.local.{domain} to AdGuard"
+  devices:
+    - {name: "desktop-omarchy", icon: "cachyos", os: "CachyOS", lan: "192.168.100.5", ts: "100.104.31.116"}
+    - {name: "laptop-omarchy",  icon: "cachyos", os: "CachyOS", lan: "—",             ts: "100.82.203.67 · offline"}
+    - {name: "iPhone",          icon: "apple",   os: "iOS",     lan: "—",             ts: "100.122.84.68"}
+
+why:                                     # small card in the left column: why the lab looks like this
+  title: "Why this shape"
+  points:
+    - "CGNAT: the ISP shares one public IPv4, so no inbound port exists. Nothing on the internet can dial in."
+    - "Both doors dial out instead — a Cloudflare tunnel and a Tailscale mesh. That is the whole design."
+    - "Publishing takes two deliberate steps: a Cloudflare route and a Caddyfile block. Never one."
+
+host:
+  name: "dell-server"
+  type: "Docker host"
+  model: "Dell Inspiron 13-5378 · a 2017 laptop"
+  ip: "192.168.100.16"
+  tailnet: "100.70.224.107"
+  os: "Ubuntu Server 26.04.1 · kernel 7.0 · Docker 29.1"
+  note: "no GPU: Immich's machine-learning container runs on these two cores"
   hw:
-    - {icon: glyph-cpu, label: "CPU",     value: "i3-9100T",     sub: "4 cores · 4 threads"}
-    - {icon: glyph-ram, label: "MEMORY",  value: "12 GB DDR4",   sub: "root on ZFS"}
-    - {icon: glyph-nic, label: "NETWORK", value: "dual 2.5G Intel", sub: "LACP to the switch"}
-    - {icon: glyph-nic, label: "NETWORK", value: "1G onboard", sub: "WAN to the Fritzbox"}
-  ip: "10.0.99.1"
-  internal: opnsense
-  nic_note: "LACP · dual 2.5G Intel NIC"
-  wan_ip: ".20"            # host part only; the network is in the Networks card
-  services:
-    - {icon: adguard,      name: "AdGuard Home", note: "DNS for all VLANs"}
-    - {icon: glyph-dhcp,   name: "dnsmasq",      note: "DHCP + *.internal"}
-    - {icon: wireguard,    name: "WireGuard",    note: "wg0 · UDP 51820"}
-    - {icon: glyph-shield, name: "Suricata IPS", note: "outbound inspection"}
-    - {icon: crowdsec,     name: "CrowdSec",     note: "LAPI + pf bouncer"}
-    - {icon: glyph-block,  name: "pf blocklist", note: "~2.3k bad IPs on WAN"}
+    - {icon: glyph-cpu,  label: "CPU",     value: "Intel i5-7200U",       sub: "2 cores · 4 threads"}
+    - {icon: glyph-ram,  label: "MEMORY",  value: "15 GB DDR4",           sub: "4 GB swap · ~12 GB free"}
+    - {icon: glyph-ssd,  label: "SSD",     value: "Micron 1100 238 GB",   sub: "SATA · LVM root, 98 GB"}
+    - {icon: glyph-ssd,  label: "SSD",     value: "Crucial X8 1 TB",      sub: "USB · /mnt/data · 322 GiB used"}
+    - {icon: glyph-wifi, label: "NETWORK", value: "Wi-Fi 5 · wlp1s0",     sub: "the uplink — no ethernet here"}
+    - {icon: glyph-nic,  label: "NETWORK", value: "tailscale0",           sub: "the private door · 100.70.224.107"}
+    - {icon: glyph-shield, label: "POWER",  value: "the laptop battery",   sub: "a small built-in UPS"}
 
-switch:
-  name: "MikroTik"
-  type: "switch"
-  model: "MikroTik CRS310-8G+2S+"
-  ip: "10.0.99.2"
-  internal: mikrotik
-  os: "RouterOS 7.20"
-  config: "configured as pure L2 switch"
-  # untagged = access VLAN, tagged = trunk VLANs
+doors:                                   # the containers that are the two doors, plus DNS
+  - {key: tunnel, icon: cloudflared, name: "cloudflared", tag: "PUBLIC DOOR",
+     ports: "no published port · outbound only", note: "keeps a connection to Cloudflare open"}
+  - {key: caddy,  icon: caddy,       name: "Caddy",       tag: "THE ROUTER",
+     ports: ":80 public · :443 tailnet", note: "one Caddyfile: every hostname → service"}
+  - {key: adguard, icon: adguard,    name: "AdGuard Home", tag: "DNS",
+     ports: ":53 LAN + tailnet · :3000 admin", note: "DoH upstream · the wildcard rewrite"}
+
+listening:                               # what actually listens on the host, and for whom
+  title: "Listening on the host"
+  note: "nothing is forwarded — the router has no public address to forward to"
   ports:
-    - {name: ether1, to: "OPNsense",  tagged: ["10","20","30","40","99"]}
-    - {name: ether2, to: "OPNsense",  tagged: ["10","20","30","40","99"]}
-    - {name: ether3, to: "MADCAT",    untagged: "10"}
-    - {name: ether4, to: "free",      tagged: ["10","20","40"]}
-    - {name: ether5, to: "JetKVM",    untagged: "10"}
-    - {name: ether6, to: "U7 Lite",   untagged: "99", tagged: ["10","30","40"]}
-    - {name: ether7, to: "SLZB-MR4",  untagged: "40"}
-    - {name: ether8, to: "rescue",    untagged: "99"}
-    - {name: sfpp1,  to: "MADCAT",    untagged: "10"}
-    - {name: sfpp2,  to: "terra",     tagged: ["10","20","40","99"]}
+    - {port: "22",    what: "SSH"}
+    - {port: "53",    what: "AdGuard DNS"}
+    - {port: "80",    what: "Caddy · public"}
+    - {port: "443",   what: "Caddy · tailnet"}
+    - {port: "3000",  what: "AdGuard admin"}
+    - {port: "8384",  what: "Syncthing UI"}
+    - {port: "22000", what: "Syncthing sync"}
 
-devices:
-  madcat:
-    name: "MADCAT"
-    type: "workstation"
-    model: "Gaming PC"
-    os: "CachyOS + Windows 11"
-    icons: [cachyos, windows]
-    vlan: "10"
-    ip: "10.0.10.30 / .31"
-    internal: madcat
-  jetkvm: {name: "JetKVM", type: "IP-KVM", model: "JetKVM", icons: [jetkvm], vlan: "10", ip: "10.0.10.11", internal: jetkvm}
-  ap:     {name: "U7 Lite", type: "access point", model: "UniFi U7 Lite · Wi-Fi 7", icons: [unifi], vlan: "99", trunk: true, ip: "10.0.99.62", internal: u7lite}
-  slzb:   {name: "SLZB-MR4", type: "coordinator", model: "SMLIGHT SLZB-MR4 · Zigbee + Thread", icons: [glyph-antenna], vlan: "40", ip: "10.0.40.20", internal: slzb-mr4}
+public_routes:                           # replaces the example's port forwards: there are none
+  - {host: "",         service: "Portfolio",    what: "static site · no login",       pill: "tunnel"}
+  - {host: "cloud",    service: "Nextcloud",    what: "share links + login page",     pill: "tunnel"}
+  - {host: "photos",   service: "Immich",       what: "album share links",            pill: "tunnel"}
+  - {host: "app",      service: "MPT project",  what: "SPA + API · own stack",        pill: "tunnel"}
 
-ssids:
-  - {name: "Home",        redacted: "Home",  vlan: "10"}
-  - {name: "Guest",       redacted: "Guest", vlan: "30"}
-  - {name: "IoT",         redacted: "IoT",   vlan: "40"}
+storage:
+  title: "Storage"
+  note: "the data lives on one USB SSD — no RAID, no mirror"
+  disks:
+    - {name: "/mnt/data", device: "Crucial X8 1 TB · USB", pct: 35, used: "322 GiB used · 548 GiB free"}
+    - {name: "/",         device: "Micron 1100 238 GB · LVM 98 GB", pct: 40, used: "39 GB used · 54 GB free"}
+  footer: "photos, nextcloud-data and the database dumps are all on the same disk"
 
-remote:
-  name: "Remote access"
-  note: "phone + laptop · WireGuard VPN"
+backups:
+  title: "BACKUPS"
+  steps:
+    - {name: "03:00 dumps",  note: "mariadb + pg_dumpall, verified"}
+    - {name: "/mnt/data/backups", note: "gzip, one file per database"}
+    - {name: "Zerobyte",     note: "restic: schedule + retention"}
+    - {name: "rclone",       note: "encrypted remote"}
+    - {name: "OneDrive",     note: "offsite, not on the LAN"}
 
-port_forwards:
-  - {port: "80, 443",   proto: "TCP/UDP", to: "Traefik",       what: "every *.{domain} site"}
-  - {port: "22",        proto: "TCP",     to: "Forgejo",       what: "git over SSH (→ :2222)"}
-  - {port: "1024",      proto: "TCP",     to: "TrueNAS",       what: "key-only SFTP backups"}
-  - {port: "51820",     proto: "UDP",     to: "WireGuard",     what: "remote access VPN"}
-  - {port: "64001",     proto: "TCP/UDP", to: "qBittorrent",   what: "incoming peers"}
-  - {port: "2022, 25560-70, …", proto: "TCP/UDP", to: "Pelican Wings", what: "game servers + SFTP"}
+stacks:                                  # container groups on the host
+  - name: "PUBLIC"
+    note: "via the tunnel · TLS ends at Cloudflare"
+    exposed: public
+    guests:
+      - name: "Portfolio"
+        icons: [hugo]
+        note: "the website · static, no login, no data"
+        endpoint: "{domain} + www"
+        meta: "built from its own repo · the image is the commit"
+        exposure: public
+      - name: "Nextcloud"
+        icons: [nextcloud]
+        note: "files, calendars, contacts"
+        endpoint: "cloud.{domain}"
+        meta: "4 containers · db + redis off the proxy net"
+        exposure: public
+      - name: "Immich"
+        icons: [immich]
+        note: "photos & videos · album shares"
+        endpoint: "photos.{domain}"
+        meta: "4 containers · vectorchord + valkey · ML on the CPU"
+        exposure: public
+  - name: "PRIVATE"
+    note: "tailnet only · real TLS from Caddy"
+    exposed: private
+    guests:
+      - name: "Karakeep"
+        icons: [karakeep]
+        note: "bookmarks, full-text search, AI tagging"
+        endpoint: "karakeep.local.{domain}"
+        meta: "3 containers · meilisearch + headless chrome"
+        exposure: private
+      - name: "Zerobyte"
+        icons: [glyph-backup]
+        note: "restic with a UI: jobs, retention, restores"
+        endpoint: "zerobyte.local.{domain}"
+        meta: "1 container · no docker socket, no SYS_ADMIN"
+        exposure: private
+      - name: "Uptime Kuma"
+        icons: [uptime-kuma]
+        note: "monitors every public hostname"
+        endpoint: "uptime.local.{domain}"
+        meta: "1 container · sqlite in ./data"
+        exposure: private
+  - name: "ALSO HERE"
+    note: "one public app, one host service"
+    guests:
+      - name: "MPT project"
+        icons: [docker]
+        note: "a second app, its own repo and stack"
+        endpoint: "app.{domain}"
+        meta: "3 containers · nginx + node + postgres"
+        exposure: public
+        apps:
+          - {icon: nginx,      name: "web", note: "SPA + /healthz", port: ":80"}
+          - {icon: nodejs,     name: "api", note: "node", port: ":3000"}
+          - {icon: postgresql, name: "db",  note: "postgres 16", port: ":5432"}
+      - name: "Syncthing"
+        icons: [syncthing]
+        note: "file sync to your own devices"
+        endpoint: "syncthing.local.{domain}"
+        meta: "systemd on the host, not a container"
+        exposure: host
 
-terra:
-  name: "terra"
-  type: "server"
-  model: "Proxmox Server"
-  os: "Proxmox VE 9.2"
-  ip: "10.0.10.20"
-  internal: terra
-  hw:
-    # label = type · value = the part · sub = extra info, or where it is passed through to
-    - {icon: glyph-cpu, label: "CPU",     value: "Ryzen 9 9900X",             sub: "12 cores · 24 threads"}
-    - {icon: glyph-ram, label: "MEMORY",  value: "64 GB DDR5",                sub: "~60 GB usable"}
-    - {icon: glyph-gpu, label: "GPU",     value: "Radeon iGPU",               sub: "passthrough → Jellyfin (CT 152)"}
-    - {icon: glyph-nic, label: "NETWORK", value: "ConnectX-3 10G",            sub: "SFP+ · VLAN-aware bridge"}
-    - {icon: glyph-ssd, label: "SSD",     value: "Samsung 980 500 GB",        sub: "NVMe · Proxmox OS"}
-    - {icon: glyph-ssd, label: "SSD",     value: "Crucial P5 Plus 2 TB",      sub: "NVMe · guest disks"}
-    - {icon: glyph-hdd, label: "HDD",     value: "7× Seagate Exos 16 TB",     sub: "SAS + SATA · passthrough → TrueNAS"}
-    - {icon: glyph-ssd, label: "SSD",     value: "Samsung 970 EVO Plus 1 TB", sub: "NVMe · passthrough → TrueNAS"}
-    - {icon: glyph-ssd, label: "SSD",     value: "Samsung 470 128 GB",        sub: "SATA · passthrough → TrueNAS"}
-    - {icon: glyph-ssd, label: "SSD",     value: "SK hynix 256 GB",           sub: "SATA · passthrough → TrueNAS"}
-  # exposure: public = via Traefik, local = Traefik but LAN/VPN only; host = <host>.<domain>; internal = <name>.internal
-  dmz_groups:
-    - name: "Edge & security"
-      guests:
-        - id: 149
-          ip: ".49"
-          name: "Edge stack"
-          icons: [traefik, authentik]
-          note: "reverse proxy · SSO · security"
-          docker: true
-          apps:
-            - {icon: traefik,   name: "Traefik",      host: traefik}
-            - {icon: authentik, name: "authentik",    host: auth}
-            - {icon: authentik, name: "LDAP outpost", note: "LDAPS for Jellyfin"}
-            - {icon: crowdsec,  name: "CrowdSec",     note: "agent + AppSec WAF"}
-            - {icon: alloy,     name: "Alloy",        note: "access logs → Loki"}
-    - name: "Monitoring"
-      guests:
-        - {id: 102, name: "Grafana", icons: [grafana], note: "dashboards", host: grafana, exposure: local}
-        - {id: 113, name: "Prometheus", icons: [prometheus], note: "Traefik metrics", internal: prometheus}
-        - {id: 116, name: "Loki", icons: [loki], note: "logs via Alloy", internal: loki}
-        - {id: 120, name: "OpenSpeedTest", icons: [openspeedtest], note: "patched upload test", host: speedtest, exposure: public}
-    - name: "Media & photos"
-      guests:
-        - id: 152
-          name: "Jellyfin"
-          icons: [jellyfin]
-          note: "streaming (iGPU) + stats"
-          apps:
-            - {icon: jellyfin,  name: "Jellyfin",  host: jellyfin}
-            - {icon: jellystat, name: "Jellystat", host: jellystat}
-        - {id: 153, name: "Seerr", icons: [seerr], note: "movie & series requests", host: seerr, exposure: public}
-        - id: 154
-          ip: ".54"
-          name: "*arr stack"
-          icons: [sonarr, radarr, prowlarr, bazarr]
-          note: "one CT, one Docker container per app"
-          docker: true
-          apps:     # one row each in the CT card
-            - {icon: sonarr,   name: "Sonarr",     host: sonarr}
-            - {icon: sonarr,   name: "Sonarr-Ani", host: sonarr-ani}
-            - {icon: radarr,   name: "Radarr",     host: radarr}
-            - {icon: prowlarr, name: "Prowlarr",   host: prowlarr}
-            - {icon: bazarr,   name: "Bazarr",     host: bazarr}
-        - {id: 140, name: "qBittorrent", icons: [qbittorrent], note: "VueTorrent UI", host: torrent, exposure: public}
-        - {id: 130, name: "MeTube", icons: [metube], note: "YouTube downloader", host: yt, exposure: local}
-        - {id: 158, ip: ".58", name: "Immich", icons: [immich], note: "photo library", host: immich, exposure: public}
-    - name: "Productivity"
-      guests:
-        - {id: 111, name: "Paperless-ngx", icons: [paperless], note: "scanned documents", host: paperless, exposure: public}
-        - {id: 125, name: "Stirling PDF", icons: [stirling], note: "PDF tools", host: pdf, exposure: public}
-        - {id: 132, name: "Tandoor", icons: [tandoor], note: "recipes", host: food, exposure: public}
-        - {id: 103, name: "Actual Budget", icons: [actual], note: "finances", host: actual, exposure: public}
-        - id: 134
-          name: "Open WebUI"
-          icons: [openwebui-l, ollama-l]
-          note: "local AI"
-          apps:
-            - {icon: openwebui-l, name: "Open WebUI", host: ai}
-            - {icon: ollama-l,    name: "Ollama",     note: "local models"}
-    - name: "Gaming"
-      guests:
-        - {id: 100, name: "Pelican Panel", icons: [pelican], note: "game server panel", host: pelican, exposure: public}
-        - {id: 101, name: "Pelican Wings", icons: [pelican], note: "node2 · runs all game servers", host: node2, exposure: public}
-    - name: "Dev"
-      guests:
-        - {id: 131, name: "Forgejo", icons: [forgejo], note: "git · SSH on public :22", host: git, exposure: public}
-        - {id: 119, name: "Forgejo runner", icons: [forgejo], note: "CI / Actions", internal: forgejo-runner}
-        - {id: 118, name: "Penpot", icons: [penpot-l], note: "design & prototyping", host: penpot, exposure: public}
-    - name: "Chat"
-      guests:
-        - id: 142
-          name: "Matrix"
-          icons: [matrix-l]
-          note: "chat server"
-          apps:
-            - {icon: matrix-l, name: "Synapse",       host: matrix}
-            - {icon: cinny,    name: "Cinny",         note: "web client (same host)"}
-            - {icon: matrix-l, name: "synapse-admin", note: "/admin · LAN only"}
-        - id: 117
-          name: "mautrix bridges"
-          icons: [matrix-l, whatsapp]
-          note: "chat bridges → Matrix"
-          docker: true
-          apps:
-            - {icon: whatsapp, name: "WhatsApp", note: "mautrix-whatsapp"}
-            - {icon: signal,   name: "Signal",   note: "mautrix-signal"}
-            - {icon: discord,  name: "Discord",  note: "mautrix-discord"}
-  # the *arr pipeline card (Media & photos); grid row A / row B, three columns
-  media_pipeline:
-    nodes:
-      seerr:    {icon: seerr, name: "Seerr", ip: ".153", ct: 153, sub: "requests", host: seerr}
-      prowlarr: {icon: prowlarr, name: "Prowlarr", ip: ".54", ct: 154, sub: "indexers", host: prowlarr}
-      jellyfin: {icon: jellyfin, name: "Jellyfin", ip: ".152", ct: 152, sub: "streams · iGPU", host: jellyfin}
-      qbit:     {icon: qbittorrent, name: "qBittorrent", ip: ".140", ct: 140, sub: "downloads", host: torrent}
-    shares:     # TrueNAS SMB shares, CIFS-mounted on terra, bind-mounted into the LXCs
-      media:    {name: "Media share", pool: "Vault · 35.6 / 85.6 TiB used", mounts: "CT 152 · 154"}
-      torrents: {name: "Torrents share", pool: "FasterBoy · 38 / 903 GiB used", mounts: "CT 140 · 154 · 130"}
-    arrs:       # the three *arr instances (all Docker in CT 154)
-      - {icon: sonarr, name: "Sonarr", ip: ".54", host: sonarr}
-      - {icon: sonarr, name: "Sonarr-Ani", ip: ".54", host: sonarr-ani}
-      - {icon: radarr, name: "Radarr", ip: ".54", host: radarr}
-  other_guests:
-    truenas:
-      id: 133
-      kind: VM
-      vlan: "10"
-      ip: "10.0.10.10"
-      internal: truenas
-      name: "TrueNAS SCALE"
-      icons: [truenas]
-      note: "VM 133 · 6 vCPU · 16 GB"
-      pools:
-        - name: Vault
-          layout: "7 HDD + 2 SSD"
-          used: "48 % used · 44.2 TiB free · 85.6 TiB usable"
-          pct: 48
-          groups:
-            - {kind: hdd, count: 7, label: "data · RAIDZ1", sub: "7× Seagate Exos 16 TB", sub2: "1 disk may fail"}
-            - {kind: ssd, count: 2, label: "special vdev · mirror", sub: "Samsung 470 + SK hynix", sub2: "metadata · 22 / 118 GiB used"}
-        - name: FasterBoy
-          layout: "1 NVMe"
-          used: "5 % used · 857 GiB free · 903 GiB usable"
-          pct: 5
-          groups:
-            - {kind: nvme, count: 1, label: "data · single disk", sub: "Samsung 970 EVO Plus 1 TB", sub2: "no redundancy"}
-      footer: "hourly snapshots · important datasets synced to Backblaze B2"
-    haos:
-      {id: 106, kind: VM, vlan: "40", ip: "10.0.40.2", host: ha, name: "Home Assistant OS", icons: [homeassistant], note: "VM 106 · 2 vCPU · 4 GB",
-       addons: [zigbee2mqtt, mosquitto, thread-l, matter-l, esphome], addons_text: "Z2M · MQTT · OTBR · Matter · ESPHome"}
-    unifi: {id: 129, kind: CT, vlan: "99", ip: "10.0.99.53", internal: unifi, name: "UniFi OS Server", icons: [unifi], note: "CT 129 · manages the U7 Lite"}
-    bliss: {id: 138, kind: VM, vlan: "10", ip: "10.0.10.155", internal: generic-android-x86-64, name: "BlissOS", icons: [android], badge: whatsapp, note: "VM 138 · WhatsApp for Matrix"}
+two_doors:                               # the explainer panel along the bottom
+  public:
+    title: "PUBLIC DOOR"
+    sub: "Cloudflare Tunnel"
+    rows:
+      - {k: "entry",  v: "Cloudflare edge · TLS ends there, no certificate on the server"}
+      - {k: "how",    v: "cloudflared dials out and holds the connection open"}
+      - {k: "carries",v: "the website, share links, and the login pages next to them"}
+      - {k: "limit",  v: "the plan's request-body cap: 100 MB · Nextcloud chunks, Immich does not"}
+      - {k: "breaks", v: "if cloudflared dies, every public name dies with it"}
+  private:
+    title: "PRIVATE DOOR"
+    sub: "Tailscale mesh"
+    rows:
+      - {k: "entry",  v: "WireGuard between your devices · 100.x.y.z, no Cloudflare"}
+      - {k: "names",  v: "AdGuard rewrites *.local.{domain} → the tailnet address"}
+      - {k: "tls",    v: "one wildcard cert from Caddy, DNS-01, real padlock"}
+      - {k: "limit",  v: "none — a 2 GB upload is the app's problem, not the path's"}
+      - {k: "breaks", v: "if Tailscale is down you have the tunnel; if both, the console"}

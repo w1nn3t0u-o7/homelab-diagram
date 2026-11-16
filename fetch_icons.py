@@ -21,28 +21,18 @@ SOURCES = [
 ]
 
 # local file name (as used in inventory.yaml / build.py) -> dashboard-icons name
+# Only what this inventory uses: own glyph-*.svg files need no entry.
 ICON_MAP = {
-    "actual": "actual-budget", "adguard": "adguard-home", "alloy": "alloy", "android": "android",
-    "authentik": "authentik", "backblaze": "backblaze", "bazarr": "bazarr", "cinny": "cinny",
-    "cloudflare": "cloudflare", "crowdsec": "crowdsec", "discord": "discord", "docker": "docker",
-    "esphome": "esphome", "forgejo": "forgejo", "fritzbox": "fritzbox", "grafana": "grafana",
-    "homeassistant": "home-assistant", "immich": "immich", "jellyfin": "jellyfin",
-    "jellystat": "jellystat", "jetkvm": "jetkvm", "loki": "loki", "matrix-l": "matrix-light",
-    "matter-l": "matter-light", "metube": "metube", "mikrotik-l": "mikrotik-light",
-    "mosquitto": "mosquitto", "openspeedtest": "openspeedtest", "openwebui-l": "open-webui-light",
-    "opnsense": "opnsense", "paperless": "paperless-ngx", "pelican": "pelican-panel",
-    "penpot-l": "penpot-light", "prometheus": "prometheus", "prowlarr": "prowlarr",
-    "proxmox": "proxmox", "qbittorrent": "qbittorrent", "radarr": "radarr", "seerr": "seerr",
-    "signal": "signal", "sonarr": "sonarr", "stirling": "stirling-pdf", "tandoor": "tandoor-recipes",
-    "traefik": "traefik", "truenas": "truenas-scale", "unifi": "unifi", "whatsapp": "whatsapp",
-    "windows": "microsoft-windows", "wireguard": "wireguard", "zigbee2mqtt": "zigbee2mqtt",
+    "adguard": "adguard-home", "apple": "apple", "caddy": "caddy",
+    "cloudflared": "cloudflare-zero-trust", "cloudflare": "cloudflare", "docker": "docker",
+    "hugo": "hugo", "immich": "immich", "karakeep": "karakeep", "nextcloud": "nextcloud",
+    "nginx": "nginx", "nodejs": "nodejs", "onedrive": "microsoft-onedrive",
+    "postgresql": "postgresql", "syncthing": "syncthing", "tailscale": "tailscale",
+    "uptime-kuma": "uptime-kuma",
 }
 
 # dark icons without a light variant: recolor them for the dark background
-RECOLOR = {
-    "ollama-l": ("ollama", 'fill="black"', 'fill="#e6edf3"'),
-    "thread-l": ("thread", 'fill="#464646"', 'fill="#e6edf3"'),
-}
+RECOLOR = {}
 
 
 def download(name, tries=3):

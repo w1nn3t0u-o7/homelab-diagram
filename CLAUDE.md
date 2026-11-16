@@ -1,33 +1,30 @@
 # CLAUDE.md – adapting this diagram to someone else's homelab
 
-You are helping a user turn **their** homelab into a diagram like `docs/example.png`. The repo currently describes the original author's lab. Your job: find out what their lab looks like, rewrite `inventory.yaml`, adapt the layout in `build.py`, and iterate on the render with them until they are happy.
+You are helping a user turn **their** homelab into a diagram like `docs/example.png`. `inventory.yaml` + `build.py` in this repo have already been rewritten once for **this** lab (one Docker host behind CGNAT, no VLANs, no hypervisor, no port forwards); `docs/example.png` is still the upstream author's VLAN/Proxmox/TrueNAS lab, so the two look different on purpose. When adapting further: find out what the lab looks like, rewrite `inventory.yaml`, move the layout in `build.py`, and iterate on the render until the user is happy.
 
 Start by telling the user briefly how this works (interview → inventory → layout → render/feedback rounds), then begin the interview. Don't ask everything at once.
 
 ## How the repo works
 
-- `inventory.yaml` – all content: VLANs, devices, switch ports, port forwards, server hardware, VMs/containers, storage pools, the media pipeline.
+- `inventory.yaml` – all content: networks (not VLANs here), the ISP router stub, the tailnet devices, the host and its hardware, the door containers, what listens on the host, the public hostnames, storage, the backup chain, the container groups (`stacks`), and the two explainer panels (`why`, `two_doors`).
 - `build.py` – hand-placed layout. Draws an SVG with absolute coordinates (logical canvas `W = 2400`, height `H`), embeds icons as base64, converts to PNG with `rsvg-convert -z 1.6` (so PNG pixels = SVG units × 1.6).
 - `fetch_icons.py` – downloads service icons into `icons/` (dashboard-icons). Own glyphs `icons/glyph-*.svg` are in the repo.
 - Output: `out/homelab.png` (redacted, safe to post) and `out/homelab-unredacted.png` (`--unredacted`).
 
 ### What is generic and what is hardcoded
 
-Generic (driven by the YAML): VLAN table, legend, "Open to the internet" card, cloud services, OPNsense hardware/services lists, switch ports (labels, VLAN ticks, colors), device cards, SSIDs, server hardware tiles, guest cards, DMZ groups and their chips, multi-app container cards, storage pools, the media pipeline nodes and shares.
+Generic (driven by the YAML): the networks table, "Why this shape", the internet cloud, the ISP stub, cloud services, the tailnet device list, "Open to the internet" (public hostnames), Storage, the host's hardware tiles, the door cards, "Listening on the host", the stack groups and their chips, the backup chain, the legend and the two-doors panel.
 
 Hardcoded in `build.py` (you will almost certainly edit these):
 
 | Section (search for) | What's fixed | Typical change |
 |---|---|---|
-| `# TOP: edge chain` | positions `CX`, `cy0`, `fy, fh` (ISP router), `ox, oy, ow, oh` (firewall), `bx, by, bw, bh` (switch) | different heights/widths, no ISP router (bridge mode), no separate firewall |
-| ISP router block (`FBX`, `COAX_X`, `FB_PORTS`) | a cable modem with a coax port + LAN ports, firewall in `opnsense_port` | DSL/fiber/ONT: rename the coax port or remove it, change port list |
-| `port_x()`, `PX0, PITCH` | switch with 8 RJ45 + 2 SFP+ in one row | other port counts, second switch |
-| `# device row`: `DY`, `MAD/KVM/AP/ZB` tuples and the `device("madcat", …)` calls | which devices sit under the switch, their x/width/height, and the cable routing to them (`MAD_10G`, `KVM_IN`, `AP_IN`, `ZB_IN`, the `S.line(... PORTS["etherN"] ...)` calls) | add/remove devices, re-route cables so they don't cross |
-| `# terra` | the big server card: `tx0, ty0`, `GY`, `ZH`, hardware column width `HWW`, guest column `gx, gw` | several servers, other column split |
-| other-VLAN guests | `og["truenas"]`, `og["haos"]`, `og["unifi"]`, `og["bliss"]` drawn one below another with fixed heights | different VMs outside the DMZ |
-| `# DMZ zone`: `NCOL` and the `column(i, [group names])` calls | which DMZ group goes into which column | rebalance columns for their groups |
-| `# media pipeline` | an *arr/Jellyfin explainer panel | remove the whole section if they don't want it, or reuse it for another flow |
-| `W` | canvas width | `H` is computed at the end from the lowest panel (`# canvas height`); adjust that line if you add a panel below terra |
+| `# internet, ISP router, the two doors` | `CX, CY` (cloud), `ix0, iy0, iw0, ih0` (ISP stub), the three lane polylines (`S.arrow(...)` for the tunnel, the Wi-Fi uplink and the tailnet) | no ISP router (bridge mode), a switch and real VLANs, more than two doors |
+| `# left column`, `# right column` | card y positions (`ny`, `wy`, `csy`, `pry`, `sty`) and the 500 px width | more networks rows, a taller storage card |
+| `# the host` (`hx, hy, hw_`, `BODY_BOTTOM`) | the server card's box; `HWX, HWW` hardware column; `DX0, DBY, DW` door band; `SZ0, SY0, colw_` stack columns | a second host, a different number of stack groups |
+| `chip()` / `stack_chip` app rows | chip height `CH_` and the four text lines (name, note, endpoint, meta) | more info per container, wider cards |
+| `# bottom band` | `BBY`, the legend rows list (`LG_ROWS`), the two-doors halves | drop the legend or the explainer |
+| `W` | canvas width | `H` is computed at the end from the lowest panel (`# canvas height`); adjust that line if you add a panel below the bottom band |
 
 Safety nets: `assert`s at the end of sections fail loudly when a column/panel overflows. Text widths come from `measure()` (Pillow + the real font) or the rough estimate `tw()`. Always check visually.
 
@@ -93,6 +90,7 @@ Pool disk groups that don't fit next to each other wrap to a second row; the ass
 
 - Fonts: **Fira Sans** and **Fira Code** must be installed, otherwise rsvg falls back and every width calculation is off.
 - jsDelivr sometimes refuses single icons with 403; `fetch_icons.py` falls back to raw GitHub.
-- When content grows, grow the section heights (`ZH`, pool boxes, …); the asserts tell you where. The canvas height follows on its own.
+- When content grows, grow `BODY_BOTTOM` (host card) or the card heights (`nh`, `prh`, `sth`); the asserts tell you where. The canvas height follows on its own.
 - `python3 build.py --inventory other.yaml` renders a different inventory file, handy for trying changes without touching `inventory.yaml`.
-- A device whose cable enters from above must have its entry point right of its folder tab (see how `KVM_IN`/`AP_IN` use `tab_width()`).
+- A line entering the host card from above must start right of its folder tab (see the Wi-Fi uplink at `x = 420` and `tab_width()`); the tunnel and tailnet lanes land on the card border, above the container they feed.
+- The `assert`s in `build.py` (tab width, stack column height, backup chain width) are the cheap way to catch overflow — keep them, they name the constant to change.
